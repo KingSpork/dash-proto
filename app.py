@@ -1,18 +1,15 @@
 import os
-from datetime import datetime, time
+from datetime import datetime
+import numpy as np
 import pandas as pd
-from dash import Dash, html, dcc, Input, Output, no_update
+from dash import Dash, html, dcc, Input, Output
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 import requests
-from plotly.figure_factory import create_candlestick
-
 
 # Import custom indicators
 from indicators.market_sessions import MarketSessionManager
 from indicators.vwap_divergence import VWAPDivergenceIndicator
-
-
 
 # --- Configuration ---
 load_dotenv()
@@ -54,7 +51,53 @@ divergence_indicator = VWAPDivergenceIndicator(window=21)
 # Process initial data
 df = divergence_indicator.calculate_divergences(df)
 
-# --- App Layout ---
+
+# --- Helper functions for manual candlestick ---
+def create_wicks_trace(df, wick_width=1, wick_color='gray'):
+    """Create single scatter trace with all candle wicks."""
+    x_vals = df.index  # Keep as datetime
+    l = df['Low'].values
+    h = df['High'].values
+
+    x_wicks = []
+    y_wicks = []
+
+    for xi, low, high in zip(x_vals, l, h):
+        x_wicks.extend([xi, xi, None])
+        y_wicks.extend([low, high, None])
+
+    return go.Scatter(
+        x=x_wicks,
+        y=y_wicks,
+        mode='lines',
+        line=dict(color=wick_color, width=wick_width),
+        name='Wicks',
+        hoverinfo='skip',
+        showlegend=False
+    )
+
+
+
+def create_bodies_trace(df, candle_width_ms=60000, color_up='green', color_down='red'):
+    """Create bar trace representing candle bodies with vectorized colors."""
+    o = df['Open'].values
+    c = df['Close'].values
+
+    colors = [color_up if close_ >= open_ else color_down for open_, close_ in zip(o, c)]
+
+    return go.Bar(
+        x=df.index,
+        y=np.abs(c - o),
+        base=np.minimum(o, c),
+        marker_color=colors,
+        width=candle_width_ms,
+        name='Bodies',
+        hoverinfo='skip',
+        showlegend=False
+    )
+
+
+# --- App Setup ---
 app = Dash(__name__)
 app.title = f"{symbol} VWAP Divergence"
 
@@ -77,7 +120,7 @@ app.layout = html.Div([
         style={"height": "80vh"},
         config={
             'scrollZoom': True,
-            'displayModeBar': True,  # Show the modebar
+            'displayModeBar': True,
             'modeBarButtonsToAdd': [
                 'zoom2d',
                 'pan2d',
@@ -102,36 +145,14 @@ def update_chart(n_intervals, theme):
 
     fig = go.Figure()
 
-    # Add traces
-    fig.add_trace(go.Candlestick(
-        x=df.index,
-        open=df["Open"],
-        high=df["High"],
-        low=df["Low"],
-        close=df["Close"],
-        increasing=dict(
-            line=dict(color='green', width=3),  # wick and body border thickness
-            fillcolor='green'
-        ),
-        decreasing=dict(
-            line=dict(color='red', width=0),
-            fillcolor='red'
-        ),
-        name="Price"
+    # Add manual candle wicks and bodies
+    fig.add_trace(create_wicks_trace(df, wick_width=0.5, wick_color='gray'))
+    fig.add_trace(create_bodies_trace(df, candle_width_ms=60000, color_up='green', color_down='red'))
 
-    ))
-
-    # fig.add_trace(go.Bar(
-    #     x=df.index,
-    #     y=df["High"] - df["Low"],
-    #     base=df["Low"],
-    #     marker_line_width=1,
-    #     width=2000,  # 2px in milliseconds
-    #     hoverinfo='skip'
-    # ))
-
+    # Add VWAP line
     fig.add_trace(go.Scatter(
-        x=df.index, y=df["VWAP"],
+        x=df.index,
+        y=df["VWAP"],
         line=dict(color="orange", width=2),
         name="VWAP"
     ))
@@ -142,37 +163,26 @@ def update_chart(n_intervals, theme):
     for shape in session_mgr.get_session_shapes(start_date, end_date):
         fig.add_shape(shape)
 
-    # Apply all layout updates
+    # Layout & axis configuration
     fig.update_layout(
         template="plotly_dark" if theme == "dark" else "plotly_white",
-        margin=dict(t=0, b=40, l=50, r=50),  # No top margin
-        height=600,  # Adjust as needed
-        xaxis=dict(
-            rangeslider=dict(visible=False),
-            type='date',
-            tickmode='auto',
-            ticklabelmode='period',
-            # dtick=86400000.0 / 24  # 1 hour ticks
-        ),
+        margin=dict(t=10, b=40, l=50, r=50),
+        height=600,
         dragmode="pan",
+        xaxis=dict(
+            type='date',
+            rangeslider=dict(visible=False),
+            tickformat='%H:%M',
+        ),
+        yaxis=dict(showgrid=True),
         xaxis_fixedrange=False,
-        yaxis_fixedrange=False
+        yaxis_fixedrange=False,
     )
 
-    # Y-axis adjustments
     fig.update_yaxes(
         side='right',
-        tickfont=dict(size=10),  # Smaller font
+        tickfont=dict(size=10),
         fixedrange=False
-    )
-
-    # Candle spacing adjustments
-    fig.update_traces(
-        selector=dict(type='candlestick'),
-        xperiodalignment="middle",
-        increasing_line_width=1,
-        decreasing_line_width=1,
-        whiskerwidth=0.5
     )
 
     return fig
@@ -185,9 +195,6 @@ def update_chart(n_intervals, theme):
 )
 def update_theme_store(theme):
     return theme
-
-
-
 
 
 # --- Run App ---
