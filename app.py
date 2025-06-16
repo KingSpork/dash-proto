@@ -11,6 +11,8 @@ import requests
 from indicators.market_sessions import MarketSessionManager
 from indicators.vwap_divergence import VWAPDivergenceIndicator
 
+
+
 # --- Configuration ---
 load_dotenv()
 API_KEY = os.getenv("POLYGON_API_KEY")
@@ -36,6 +38,7 @@ def fetch_data(symbol: str, date: str) -> pd.DataFrame:
         "c": "Close",
         "v": "Volume"
     })
+    df.index = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('America/New_York')
 
     return df[["Open", "High", "Low", "Close", "Volume"]]  # Explicit column order
 
@@ -68,7 +71,11 @@ app.layout = html.Div([
         ),
     ], style={"padding": "10px"}),
 
-    dcc.Graph(id="chart", style={"height": "80vh"})
+    dcc.Graph(
+        id="chart",
+        style={"height": "80vh"},
+        config={'scrollZoom': True}  # This is where scroll zoom gets enabled
+    )
 ])
 
 
@@ -79,13 +86,12 @@ app.layout = html.Div([
      Input("theme-selector", "value")]
 )
 def update_chart(n_intervals, theme):
-    # Get current data (in a real app, you'd refresh this)
     global df
 
     # Create base figure
     fig = go.Figure()
 
-    # Add price data
+    # Add traces (keep your existing code)
     fig.add_trace(go.Candlestick(
         x=df.index,
         open=df["Open"],
@@ -94,8 +100,6 @@ def update_chart(n_intervals, theme):
         close=df["Close"],
         name="Price"
     ))
-
-    # Add VWAP and divergence bands
     fig.add_trace(go.Scatter(
         x=df.index, y=df["VWAP"],
         line=dict(color="orange", width=2),
@@ -108,10 +112,20 @@ def update_chart(n_intervals, theme):
     for shape in session_mgr.get_session_shapes(start_date, end_date):
         fig.add_shape(shape)
 
-    # Apply theme
+    # Apply theme and zoom settings
     fig.update_layout(
         template="plotly_dark" if theme == "dark" else "plotly_white",
-        xaxis_rangeslider_visible=False
+        xaxis_rangeslider_visible=False,
+
+        # Enable zoom/pan
+        dragmode="pan",  # or "zoom" for rectangle zoom
+        xaxis=dict(
+            fixedrange=False,  # Allow x-axis zoom
+            autorange=True
+        ),
+        yaxis=dict(
+            fixedrange=False  # Allow y-axis zoom
+        )
     )
 
     return fig
@@ -124,6 +138,9 @@ def update_chart(n_intervals, theme):
 )
 def update_theme_store(theme):
     return theme
+
+
+
 
 
 # --- Run App ---
