@@ -1,0 +1,7 @@
+dash
+pandas
+plotly
+requests
+python-dotenv
+pandas-stubs
+types-pytz

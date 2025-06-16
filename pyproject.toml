@@ -1,0 +1,17 @@
+[tool.black]
+line-length = 128
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | [\\/]venv[\\/]  # Extra Windows/Unix compatible exclusion
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
