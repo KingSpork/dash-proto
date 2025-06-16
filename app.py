@@ -16,6 +16,9 @@ load_dotenv()
 API_KEY = os.getenv("POLYGON_API_KEY")
 symbol = "QQQ"
 
+# --- Color Constants ---
+COLOR_UP = 'rgb(8, 153, 129)'
+COLOR_DOWN = 'rgb(242, 54, 69)'
 
 # --- Data Initialization ---
 def fetch_data(symbol: str, date: str) -> pd.DataFrame:
@@ -28,7 +31,6 @@ def fetch_data(symbol: str, date: str) -> pd.DataFrame:
     df["t"] = pd.to_datetime(df["t"], unit="ms")
     df = df.set_index("t")
 
-    # Standardize column names
     df = df.rename(columns={
         "o": "Open",
         "h": "High",
@@ -38,8 +40,7 @@ def fetch_data(symbol: str, date: str) -> pd.DataFrame:
     })
     df.index = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('America/New_York')
 
-    return df[["Open", "High", "Low", "Close", "Volume"]]  # Explicit column order
-
+    return df[["Open", "High", "Low", "Close", "Volume"]]
 
 today = datetime.now().strftime("%Y-%m-%d")
 df = fetch_data(symbol, today)
@@ -48,35 +49,27 @@ df = fetch_data(symbol, today)
 session_mgr = MarketSessionManager(API_KEY)
 divergence_indicator = VWAPDivergenceIndicator(window=21)
 
-# Process initial data
 df = divergence_indicator.calculate_divergences(df)
 
 
-# --- Helper functions for manual candlestick ---
-def create_wicks_traces(df, wick_width=1, color_up='green', color_down='red'):
-    """Create two scatter traces for wicks, colored by candle direction."""
-
+# --- Helper functions ---
+def create_wicks_traces(df, wick_width=1):
     x_vals = df.index
     l = df['Low'].values
     h = df['High'].values
     o = df['Open'].values
     c = df['Close'].values
 
-    # Containers for up candles
     x_wicks_up = []
     y_wicks_up = []
-
-    # Containers for down candles
     x_wicks_down = []
     y_wicks_down = []
 
     for xi, low, high, open_, close_ in zip(x_vals, l, h, o, c):
         if close_ >= open_:
-            # Up candle wick points
             x_wicks_up.extend([xi, xi, None])
             y_wicks_up.extend([low, high, None])
         else:
-            # Down candle wick points
             x_wicks_down.extend([xi, xi, None])
             y_wicks_down.extend([low, high, None])
 
@@ -84,7 +77,7 @@ def create_wicks_traces(df, wick_width=1, color_up='green', color_down='red'):
         x=x_wicks_up,
         y=y_wicks_up,
         mode='lines',
-        line=dict(color=color_up, width=wick_width),
+        line=dict(color=COLOR_UP, width=wick_width),
         name='Wicks Up',
         hoverinfo='skip',
         showlegend=False
@@ -94,7 +87,7 @@ def create_wicks_traces(df, wick_width=1, color_up='green', color_down='red'):
         x=x_wicks_down,
         y=y_wicks_down,
         mode='lines',
-        line=dict(color=color_down, width=wick_width),
+        line=dict(color=COLOR_DOWN, width=wick_width),
         name='Wicks Down',
         hoverinfo='skip',
         showlegend=False
@@ -103,14 +96,11 @@ def create_wicks_traces(df, wick_width=1, color_up='green', color_down='red'):
     return trace_up, trace_down
 
 
-
-
-def create_bodies_trace(df, candle_width_ms=60000, color_up='green', color_down='red'):
-    """Create bar trace representing candle bodies with vectorized colors."""
+def create_bodies_trace(df, candle_width_ms=60000):
     o = df['Open'].values
     c = df['Close'].values
 
-    colors = [color_up if close_ >= open_ else color_down for open_, close_ in zip(o, c)]
+    colors = [COLOR_UP if close_ >= open_ else COLOR_DOWN for open_, close_ in zip(o, c)]
 
     return go.Bar(
         x=df.index,
@@ -130,7 +120,7 @@ app.title = f"{symbol} VWAP Divergence"
 
 app.layout = html.Div([
     dcc.Store(id="theme-store", storage_type="local"),
-    dcc.Interval(id="update-interval", interval=60_000),  # 1 minute updates
+    dcc.Interval(id="update-interval", interval=60_000),
 
     html.Div([
         html.Label("Theme:"),
@@ -172,13 +162,11 @@ def update_chart(n_intervals, theme):
 
     fig = go.Figure()
 
-    # Add manual candle wicks and bodies
-    trace_wicks_up, trace_wicks_down = create_wicks_traces(df, wick_width=0.5, color_up='green', color_down='red')
+    trace_wicks_up, trace_wicks_down = create_wicks_traces(df, wick_width=0.5)
     fig.add_trace(trace_wicks_up)
     fig.add_trace(trace_wicks_down)
-    fig.add_trace(create_bodies_trace(df, candle_width_ms=60000, color_up='green', color_down='red'))
+    fig.add_trace(create_bodies_trace(df))
 
-    # Add VWAP line
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df["VWAP"],
@@ -186,13 +174,11 @@ def update_chart(n_intervals, theme):
         name="VWAP"
     ))
 
-    # Add session shading
     start_date = df.index.min().date()
     end_date = df.index.max().date()
     for shape in session_mgr.get_session_shapes(start_date, end_date):
         fig.add_shape(shape)
 
-    # Layout & axis configuration
     fig.update_layout(
         template="plotly_dark" if theme == "dark" else "plotly_white",
         margin=dict(t=10, b=40, l=50, r=50),
