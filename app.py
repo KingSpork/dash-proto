@@ -5,6 +5,7 @@ from dash import Dash, html, dcc, Input, Output, no_update
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 import requests
+from plotly.figure_factory import create_candlestick
 
 
 # Import custom indicators
@@ -108,7 +109,16 @@ def update_chart(n_intervals, theme):
         high=df["High"],
         low=df["Low"],
         close=df["Close"],
+        increasing=dict(
+            line=dict(color='green', width=3),  # wick and body border thickness
+            fillcolor='green'
+        ),
+        decreasing=dict(
+            line=dict(color='red', width=0),
+            fillcolor='red'
+        ),
         name="Price"
+
     ))
 
     # fig.add_trace(go.Bar(
@@ -142,7 +152,7 @@ def update_chart(n_intervals, theme):
             type='date',
             tickmode='auto',
             ticklabelmode='period',
-            dtick=86400000.0 / 24  # 1 hour ticks
+            # dtick=86400000.0 / 24  # 1 hour ticks
         ),
         dragmode="pan",
         xaxis_fixedrange=False,
