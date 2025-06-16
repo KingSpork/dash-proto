@@ -53,28 +53,55 @@ df = divergence_indicator.calculate_divergences(df)
 
 
 # --- Helper functions for manual candlestick ---
-def create_wicks_trace(df, wick_width=1, wick_color='gray'):
-    """Create single scatter trace with all candle wicks."""
-    x_vals = df.index  # Keep as datetime
+def create_wicks_traces(df, wick_width=1, color_up='green', color_down='red'):
+    """Create two scatter traces for wicks, colored by candle direction."""
+
+    x_vals = df.index
     l = df['Low'].values
     h = df['High'].values
+    o = df['Open'].values
+    c = df['Close'].values
 
-    x_wicks = []
-    y_wicks = []
+    # Containers for up candles
+    x_wicks_up = []
+    y_wicks_up = []
 
-    for xi, low, high in zip(x_vals, l, h):
-        x_wicks.extend([xi, xi, None])
-        y_wicks.extend([low, high, None])
+    # Containers for down candles
+    x_wicks_down = []
+    y_wicks_down = []
 
-    return go.Scatter(
-        x=x_wicks,
-        y=y_wicks,
+    for xi, low, high, open_, close_ in zip(x_vals, l, h, o, c):
+        if close_ >= open_:
+            # Up candle wick points
+            x_wicks_up.extend([xi, xi, None])
+            y_wicks_up.extend([low, high, None])
+        else:
+            # Down candle wick points
+            x_wicks_down.extend([xi, xi, None])
+            y_wicks_down.extend([low, high, None])
+
+    trace_up = go.Scatter(
+        x=x_wicks_up,
+        y=y_wicks_up,
         mode='lines',
-        line=dict(color=wick_color, width=wick_width),
-        name='Wicks',
+        line=dict(color=color_up, width=wick_width),
+        name='Wicks Up',
         hoverinfo='skip',
         showlegend=False
     )
+
+    trace_down = go.Scatter(
+        x=x_wicks_down,
+        y=y_wicks_down,
+        mode='lines',
+        line=dict(color=color_down, width=wick_width),
+        name='Wicks Down',
+        hoverinfo='skip',
+        showlegend=False
+    )
+
+    return trace_up, trace_down
+
 
 
 
@@ -146,7 +173,9 @@ def update_chart(n_intervals, theme):
     fig = go.Figure()
 
     # Add manual candle wicks and bodies
-    fig.add_trace(create_wicks_trace(df, wick_width=0.5, wick_color='gray'))
+    trace_wicks_up, trace_wicks_down = create_wicks_traces(df, wick_width=0.5, color_up='green', color_down='red')
+    fig.add_trace(trace_wicks_up)
+    fig.add_trace(trace_wicks_down)
     fig.add_trace(create_bodies_trace(df, candle_width_ms=60000, color_up='green', color_down='red'))
 
     # Add VWAP line
