@@ -99,10 +99,9 @@ app.layout = html.Div([
 def update_chart(n_intervals, theme):
     global df
 
-    # Create base figure
     fig = go.Figure()
 
-    # Add traces (keep your existing code)
+    # Add traces
     fig.add_trace(go.Candlestick(
         x=df.index,
         open=df["Open"],
@@ -111,6 +110,16 @@ def update_chart(n_intervals, theme):
         close=df["Close"],
         name="Price"
     ))
+
+    # fig.add_trace(go.Bar(
+    #     x=df.index,
+    #     y=df["High"] - df["Low"],
+    #     base=df["Low"],
+    #     marker_line_width=1,
+    #     width=2000,  # 2px in milliseconds
+    #     hoverinfo='skip'
+    # ))
+
     fig.add_trace(go.Scatter(
         x=df.index, y=df["VWAP"],
         line=dict(color="orange", width=2),
@@ -123,20 +132,37 @@ def update_chart(n_intervals, theme):
     for shape in session_mgr.get_session_shapes(start_date, end_date):
         fig.add_shape(shape)
 
-    # Apply theme and zoom settings
+    # Apply all layout updates
     fig.update_layout(
         template="plotly_dark" if theme == "dark" else "plotly_white",
-        xaxis_rangeslider_visible=False,
-
-        # Enable zoom/pan
-        dragmode="pan",  # or "zoom" for rectangle zoom
+        margin=dict(t=0, b=40, l=50, r=50),  # No top margin
+        height=600,  # Adjust as needed
         xaxis=dict(
-            fixedrange=False,  # Allow x-axis zoom
-            autorange=True
+            rangeslider=dict(visible=False),
+            type='date',
+            tickmode='auto',
+            ticklabelmode='period',
+            dtick=86400000.0 / 24  # 1 hour ticks
         ),
-        yaxis=dict(
-            fixedrange=False  # Allow y-axis zoom
-        )
+        dragmode="pan",
+        xaxis_fixedrange=False,
+        yaxis_fixedrange=False
+    )
+
+    # Y-axis adjustments
+    fig.update_yaxes(
+        side='right',
+        tickfont=dict(size=10),  # Smaller font
+        fixedrange=False
+    )
+
+    # Candle spacing adjustments
+    fig.update_traces(
+        selector=dict(type='candlestick'),
+        xperiodalignment="middle",
+        increasing_line_width=1,
+        decreasing_line_width=1,
+        whiskerwidth=0.5
     )
 
     return fig
