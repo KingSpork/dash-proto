@@ -74,7 +74,18 @@ app.layout = html.Div([
     dcc.Graph(
         id="chart",
         style={"height": "80vh"},
-        config={'scrollZoom': True}  # This is where scroll zoom gets enabled
+        config={
+            'scrollZoom': True,
+            'displayModeBar': True,  # Show the modebar
+            'modeBarButtonsToAdd': [
+                'zoom2d',
+                'pan2d',
+                'zoomIn2d',
+                'zoomOut2d',
+                'autoScale2d',
+                'resetScale2d'
+            ]
+        }
     )
 ])
 
