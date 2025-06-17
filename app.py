@@ -202,7 +202,11 @@ app.layout = html.Div([
 
     dcc.Graph(
         id="chart",
-        style={"height": "80vh", "width": "100%"},
+        style={
+            "height": "calc(100vh - 100px)",
+            "width": "100%",
+            "minHeight": "600px"
+        },
         config={
             'scrollZoom': True,
             'displayModeBar': True,
@@ -211,7 +215,12 @@ app.layout = html.Div([
             ]
         }
     )
-])
+], style={
+    "height": "100vh",
+    "width": "100%",
+    "display": "flex",
+    "flexDirection": "column"
+})
 
 
 # --- Callbacks ---
@@ -265,13 +274,12 @@ def update_chart(n_intervals: int, theme: str, timeframe: Timeframe) -> go.Figur
             df = new_data
             df = divergence_indicator.calculate_divergences(df)
         else:
-            return go.Figure()  # Return empty figure on error
+            return go.Figure()
 
-    # Create figure with consistent dimensions
     fig = go.Figure(
         layout={
-            'height': 600,
-            'margin': dict(t=10, b=40, l=50, r=50)
+            'margin': dict(t=10, b=10, l=50, r=50),
+            'autosize': True
         }
     )
 
@@ -292,7 +300,6 @@ def update_chart(n_intervals: int, theme: str, timeframe: Timeframe) -> go.Figur
     for shape in session_mgr.get_session_shapes(start_date, end_date):
         fig.add_shape(shape)
 
-    # Update layout while maintaining dimensions
     fig.update_layout(
         template="plotly_dark" if theme == "dark" else "plotly_white",
         dragmode="pan",
