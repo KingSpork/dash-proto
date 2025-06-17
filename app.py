@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import Literal, Optional, Dict, Any
 import numpy as np
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output, State, ctx
@@ -7,7 +8,6 @@ import plotly.graph_objects as go
 from dotenv import load_dotenv
 import requests
 import json
-from typing import Literal, Optional, Dict, Any
 
 # Import custom indicators
 from indicators.market_sessions import MarketSessionManager
@@ -165,6 +165,7 @@ initial_config = load_config()
 app.layout = html.Div([
     dcc.Store(id="theme-store", storage_type="local", data=initial_config["theme"]),
     dcc.Store(id="timeframe-store", storage_type="local", data=initial_config.get("timeframe", "1m")),
+    dcc.Store(id="chart-state-store"),
     dcc.Interval(id="update-interval", interval=60_000),
 
     html.Div([
@@ -259,13 +260,39 @@ def update_timeframe(timeframe: Timeframe) -> Timeframe:
 
 
 @app.callback(
+    Output("chart-state-store", "data"),
+    Input("chart", "relayoutData"),
+    State("chart-state-store", "data"),
+    prevent_initial_call=True
+)
+def capture_chart_state(relayout_data: Optional[dict], current_state: Optional[dict]) -> dict:
+    """Store relevant chart state when user interacts with the chart."""
+    if not relayout_data:
+        return current_state or {}
+
+    # Filter for only the properties we want to persist
+    persistable_props = ['xaxis.range[0]', 'xaxis.range[1]',
+                         'yaxis.range[0]', 'yaxis.range[1]',
+                         'xaxis.autorange', 'yaxis.autorange']
+
+    # Safely extract properties
+    new_state = {}
+    for prop in persistable_props:
+        if prop in relayout_data:
+            new_state[prop] = relayout_data[prop]
+
+    return new_state if new_state else (current_state or {})
+
+
+@app.callback(
     Output("chart", "figure"),
     [Input("update-interval", "n_intervals"),
      Input("theme-store", "data"),
      Input("timeframe-store", "data")],
+    [State("chart-state-store", "data")],
     prevent_initial_call=True
 )
-def update_chart(n_intervals: int, theme: str, timeframe: Timeframe) -> go.Figure:
+def update_chart(n_intervals: int, theme: str, timeframe: Timeframe, chart_state: Optional[dict]) -> go.Figure:
     global df
 
     if ctx.triggered_id == "timeframe-store":
@@ -330,6 +357,21 @@ def update_chart(n_intervals: int, theme: str, timeframe: Timeframe) -> go.Figur
         tickfont=dict(size=10),
         fixedrange=False
     )
+
+    # Safely restore the previous view state if available
+    if chart_state and isinstance(chart_state, dict):
+        try:
+            clean_layout = {}
+            for k, v in chart_state.items():
+                if k in ['xaxis.range[0]', 'xaxis.range[1]',
+                         'yaxis.range[0]', 'yaxis.range[1]',
+                         'xaxis.autorange', 'yaxis.autorange']:
+                    clean_layout[k] = v
+
+            if clean_layout:
+                fig.update_layout(clean_layout)
+        except Exception as e:
+            print(f"Error restoring chart state: {e}")
 
     return fig
 
