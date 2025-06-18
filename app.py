@@ -163,9 +163,11 @@ app.title = f"{symbol} VWAP Divergence"
 initial_config = load_config()
 
 app.layout = html.Div([
+    dcc.Location(id='url'),
     dcc.Store(id="theme-store", storage_type="local", data=initial_config["theme"]),
     dcc.Store(id="timeframe-store", storage_type="local", data=initial_config.get("timeframe", "1m")),
     dcc.Store(id="chart-state-store"),
+    dcc.Store(id='dummy-store'),
     dcc.Interval(id="update-interval", interval=60_000),
 
     html.Div([
@@ -212,8 +214,10 @@ app.layout = html.Div([
             'scrollZoom': True,
             'displayModeBar': True,
             'modeBarButtonsToAdd': [
-                'zoom2d', 'pan2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
-            ]
+                'zoom2d', 'pan2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d', 'horizontalLine',
+            ],
+            'modeBarButtonsToRemove': [],  # Ensure nothing is being removed
+            'displaylogo': False  # Optional: removes Plotly logo
         }
     )
 ], style={
@@ -223,6 +227,23 @@ app.layout = html.Div([
     "flexDirection": "column"
 })
 
+app.clientside_callback(
+    """
+    function() {
+        // Wait for Plotly to be available
+        if (window.Plotly) {
+            const gd = document.getElementById('graph');
+            if (gd) {
+                handleHorizontalLineCreation(gd);
+                enforceHorizontalConstraints(gd);
+            }
+        }
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output('dummy-store', 'data'),
+    Input('url', 'pathname')
+)
 
 # --- Callbacks ---
 @app.callback(
